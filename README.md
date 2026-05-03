@@ -1,50 +1,73 @@
-# browser-debug-bridge
+# cdp-bridge
 
-Portable browser debugging for Emacs `dape` with a vendored `js-debug` adapter.
+Portable browser debugging for Emacs `dape` using Microsoft's `js-debug` adapter.
 
 ## How it works
 
-`browser-debug-bridge` lets Emacs debug a real Chrome or Chromium tab.
+`cdp-bridge` lets Emacs debug a real Chrome or Chromium tab.
 
 The stack looks like this:
 
 - Emacs provides the UI through `dape`
-- `dape` speaks DAP to the vendored `js-debug` adapter in `vendor/js-debug`
+- `dape` speaks DAP to the `js-debug` adapter unpacked into `vendor/js-debug`
 - `js-debug` launches Chrome/Chromium and talks to the browser over CDP, the Chrome DevTools Protocol
 
 In practice, this means your app still runs in the browser, while Emacs shows breakpoints, call stacks, locals, scopes, and the debug REPL.
 
 ## Overview
 
-This repo is meant to live at `~/Workspace/browser-debug-bridge` and be reusable across projects and machines.
+This repo can live wherever you want, as long as Emacs loads `browser-debug-bridge.el` from that location and your local `js-debug` install path matches what your config expects.
 
 - `browser-debug-bridge.el` provides a small Emacs bridge for `dape`
-- `vendor/js-debug` is committed so the adapter does not need to be reinstalled on every machine
-- `install-js-debug.sh` is optional and only used when you want to refresh the vendored adapter
+- `js-debug` itself is not part of this repo
+- you install `js-debug` separately and point Emacs at that install
 
 ## Requirements
 
 - Emacs with `dape` installed
 - `node` on your `PATH`
 - Chrome or Chromium installed locally
+- Microsoft's `js-debug` adapter unpacked somewhere on your machine
 - Source maps enabled in your app build for useful TS/JS breakpoints
+
+## Install `js-debug`
+
+Install the `js-debug-dap` release from Microsoft's `vscode-js-debug` releases somewhere on your machine.
+
+After unpacking it, make sure you know the full path to:
+
+```text
+/path/to/js-debug/src/dapDebugServer.js
+```
+
+That is the file Emacs needs to launch through `node`.
 
 ## Setup
 
-1. Clone this repo to `~/Workspace/browser-debug-bridge`
-2. Add this to your Emacs init:
+1. Clone this repo wherever you want
+2. Add this to your Emacs init, adjusting the path to where you cloned the bridge:
 
 ```elisp
-(load-file "~/Workspace/browser-debug-bridge/browser-debug-bridge.el")
+(load-file "/path/to/browser-debug-bridge/browser-debug-bridge.el")
 ```
 
-3. In each project, add a `.dir-locals.el` snippet that registers a `<project>-debug` config
-4. Start that project's dev server
-5. Run `M-x dape`, choose `<project>-debug`, and debug from Emacs while the app runs in the browser
+3. Set `bdb/js-debug-root` to wherever you unpacked `js-debug`
+4. Register a `<project>-debug` config for the project you want to debug
+5. Start that project's dev server
+6. Run `M-x dape`, choose `<project>-debug`, and debug from Emacs while the app runs in the browser
+
+For example:
+
+```elisp
+(load-file "/path/to/browser-debug-bridge/browser-debug-bridge.el")
+(setq bdb/js-debug-root "/path/to/js-debug")
+(setq bdb/js-debug-server
+      (expand-file-name "src/dapDebugServer.js" bdb/js-debug-root))
+```
 
 ## Example `.dir-locals.el`
 
-Copy this into a project and replace the hardcoded path and URL with your own values:
+One way to register a project config is with `.dir-locals.el`. Copy this into a project and replace the hardcoded path and URL with your own values:
 
 ```elisp
 ((nil . ((eval . (bdb/register-config
@@ -55,18 +78,8 @@ Copy this into a project and replace the hardcoded path and URL with your own va
                    :userDataDir "/Users/j/Workspace/browser-debug-bridge/profiles/cad"))))))
 ```
 
-The browser profile path under `~/Workspace/browser-debug-bridge/profiles/<project>` keeps state isolated between projects without baking project state into the bridge itself.
+If you do not want to use `.dir-locals.el`, you can instead call `bdb/register-config` from your init file or another Emacs Lisp file that you load manually.
+
+The browser profile path can also be anywhere you want. Keeping it under a per-project directory is a simple way to avoid mixing browser state between projects.
 
 `bdb/register-config` accepts either a symbol or a string name, but the intended convention is `<project>-debug`.
-
-## Optional adapter refresh
-
-If you want to update the vendored `js-debug` adapter later:
-
-```sh
-~/Workspace/browser-debug-bridge/install-js-debug.sh
-```
-
-That refreshes `vendor/js-debug`. It is not part of normal per-machine setup when the repo already includes the adapter.
-
-# cdp-bridge
